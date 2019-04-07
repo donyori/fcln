@@ -2,15 +2,20 @@ package main
 
 import "github.com/donyori/gotfp"
 
-func makeBatchHandler(toRemove *BatchList, exitChan <-chan struct{},
+// Ensure batchChan != nil.
+func makeBatchHandler(batchChan chan<- *Batch, exitChan <-chan struct{},
 	errChan chan<- error) gotfp.BatchHandler {
 	h := func(batch gotfp.Batch, depth int) (
 		action gotfp.Action, skipDirs map[string]bool) {
+		// Handling batch.Parent is necessary because of roots.
 		if batch.Parent.Err != nil {
 			if errChan != nil {
 				errChan <- batch.Parent.Err
 			}
 			return gotfp.ActionExit, nil
+		}
+		if batch.Parent.Info != nil && skipFilter(batch.Parent.Info) {
+			return gotfp.ActionSkipDir, nil
 		}
 		if len(batch.Errs) > 0 {
 			if errChan != nil {
@@ -28,7 +33,12 @@ func makeBatchHandler(toRemove *BatchList, exitChan <-chan struct{},
 
 		var b *Batch
 		for i := range batch.Dirs {
-			if removeDirFilter(batch.Dirs[i].Info) {
+			if skipFilter(batch.Dirs[i].Info) {
+				if skipDirs == nil {
+					skipDirs = make(map[string]bool)
+				}
+				skipDirs[batch.Dirs[i].Path] = true
+			} else if removeDirFilter(batch.Dirs[i].Info) {
 				if skipDirs == nil {
 					skipDirs = make(map[string]bool)
 				}
@@ -40,7 +50,8 @@ func makeBatchHandler(toRemove *BatchList, exitChan <-chan struct{},
 			}
 		}
 		for i := range batch.RegFiles {
-			if removeRegFileFilter(batch.RegFiles[i].Info) {
+			if !skipFilter(batch.RegFiles[i].Info) &&
+				removeRegFileFilter(batch.RegFiles[i].Info) {
 				if b == nil {
 					b = &Batch{Parent: batch.Parent.Path}
 				}
@@ -48,7 +59,7 @@ func makeBatchHandler(toRemove *BatchList, exitChan <-chan struct{},
 			}
 		}
 		if b != nil {
-			*toRemove = append(*toRemove, b)
+			batchChan <- b
 		}
 
 		if len(skipDirs) == 0 {

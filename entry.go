@@ -8,26 +8,52 @@ import (
 )
 
 func getToRemove(roots ...string) (toRemove BatchList, err error) {
-	workerNumber := runtime.GOMAXPROCS(0)
+	workerNumber := runtime.GOMAXPROCS(0) - 1
+	if workerNumber <= 0 {
+		workerNumber = 1
+	}
 	var bl BatchList
+	batchChan := make(chan *Batch, workerNumber)
 	exitChan := make(chan struct{})
 	errChan := make(chan error, workerNumber)
-	h := makeBatchHandler(&bl, exitChan, errChan)
+	h := makeBatchHandler(batchChan, exitChan, errChan)
 	doneChan := make(chan struct{})
-	var workerErr error
+	var workerErr, e error
+	var b *Batch
+	var ok bool
 	go func() {
 		defer close(doneChan)
-		e, ok := <-errChan
-		if !ok {
-			return
+		doesContinue := true
+		for doesContinue {
+			select {
+			case b, ok = <-batchChan:
+				if !ok {
+					doesContinue = false
+					break
+				}
+				if workerErr != nil {
+					// Stop appending b to bl.
+					break
+				}
+				bl = append(bl, b)
+			case e = <-errChan:
+				if exitChan == nil {
+					break
+				}
+				close(exitChan)
+				exitChan = nil
+				workerErr = e
+			}
 		}
-		workerErr = e
-		close(exitChan)
-		for range errChan {
+		for e = range errChan {
 			// Drain errChan.
+			if workerErr == nil {
+				workerErr = e
+			}
 		}
 	}()
 	err = gotfp.TraverseBatches(h, workerNumber, errChan, 0, roots...)
+	close(batchChan)
 	close(errChan)
 	<-doneChan
 	if err == nil {
