@@ -8,7 +8,7 @@ import (
 
 func main() {
 	startTime := time.Now()
-	toRemove, err := getToRemove(os.Args[1:]...)
+	toRemove, err := getToRemove(true, os.Args[1:]...)
 	fmt.Println("Elapsed", time.Since(startTime))
 	if err != nil {
 		fmt.Println("Error:", err)
