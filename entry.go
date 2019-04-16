@@ -7,7 +7,7 @@ import (
 	"github.com/donyori/gotfp"
 )
 
-func getToRemove(doesIgnorePermissionError bool, roots ...string) (
+func getToRemove(roots ...string) (
 	toRemove BatchList, err error) {
 	workerNumber := runtime.GOMAXPROCS(0) - 1
 	if workerNumber <= 0 {
@@ -17,8 +17,7 @@ func getToRemove(doesIgnorePermissionError bool, roots ...string) (
 	batchChan := make(chan *Batch, workerNumber)
 	exitChan := make(chan struct{})
 	errChan := make(chan error, workerNumber)
-	h := makeBatchHandler(batchChan, exitChan, errChan,
-		doesIgnorePermissionError)
+	h := makeBatchHandler(batchChan, exitChan, errChan)
 	doneChan := make(chan struct{})
 	var workerErr, e error
 	var b *Batch
@@ -54,16 +53,14 @@ func getToRemove(doesIgnorePermissionError bool, roots ...string) (
 			}
 		}
 	}()
-	err = gotfp.TraverseBatches(h, workerNumber, errChan, 0, roots...)
+	gotfp.TraverseBatches(h, workerNumber, errChan, 0, roots...)
 	close(batchChan)
 	close(errChan)
 	<-doneChan
+	err = workerErr
 	if err == nil {
-		err = workerErr
-		if err == nil {
-			sort.Sort(bl)
-			toRemove = bl
-		}
+		sort.Sort(bl)
+		toRemove = bl
 	}
 	return
 }

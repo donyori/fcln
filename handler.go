@@ -8,47 +8,75 @@ import (
 
 // Ensure batchChan != nil.
 func makeBatchHandler(batchChan chan<- *Batch, exitChan <-chan struct{},
-	errChan chan<- error, doesIgnorePermissionError bool) gotfp.BatchHandler {
+	errChan chan<- error) gotfp.BatchHandler {
+	lazyLoadSettings()
 	h := func(batch gotfp.Batch, depth int) (
 		action gotfp.Action, skipDirs map[string]bool) {
 		// Handling batch.Parent is necessary because of roots.
 		if batch.Parent.Info != nil {
 			if batch.Parent.Info.IsDir() {
 				if skipDirFilter(batch.Parent.Info) {
-					return gotfp.ActionSkipDir, nil
+					action = gotfp.ActionSkipDir
+					return
 				}
 			} else {
-				return gotfp.ActionContinue, nil
+				action = gotfp.ActionContinue
+				return
 			}
 		}
 		if batch.Parent.Err != nil {
-			if doesIgnorePermissionError && os.IsPermission(batch.Parent.Err) {
-				// Skip all its content.
-				return gotfp.ActionSkipDir, nil
+			if os.IsPermission(batch.Parent.Err) {
+				switch settings.PermissionErrorHandling {
+				case Ignore:
+					// Skip all its contents.
+					action = gotfp.ActionSkipDir
+					return
+				case Fatal:
+					// Report error and exit.
+					action = gotfp.ActionExit
+				case Warn:
+					// Report error and skip all its contents.
+					fallthrough
+				default:
+					// Work as Warn.
+					action = gotfp.ActionSkipDir
+				}
 			}
 			if errChan != nil {
 				errChan <- batch.Parent.Err
 			}
-			return gotfp.ActionExit, nil
+			return
 		}
 		if len(batch.Errs) > 0 {
 			for i := range batch.Errs {
-				if doesIgnorePermissionError &&
-					os.IsPermission(batch.Errs[i].Err) {
-					continue
+				if os.IsPermission(batch.Errs[i].Err) {
+					switch settings.PermissionErrorHandling {
+					case Ignore:
+						// Ignore this error.
+						continue
+					case Fatal:
+						// Report this error and exit.
+						action = gotfp.ActionExit
+					case Warn:
+						// Just report this error.
+					default:
+						// Work as Warn:
+					}
+				} else {
+					action = gotfp.ActionExit
 				}
 				if errChan != nil {
 					errChan <- batch.Errs[i].Err
 				}
-				action = gotfp.ActionExit
-			}
+			} // End of for loop.
 			if action == gotfp.ActionExit {
 				return
 			}
 		}
 		select {
 		case <-exitChan:
-			return gotfp.ActionExit, nil
+			action = gotfp.ActionExit
+			return
 		default:
 		}
 

@@ -3,9 +3,42 @@ package main
 import (
 	"bufio"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
+
+var (
+	pathSeps string = "/\\"
+
+	skpRegFilePattern, skpDirPattern *regexp.Regexp
+	rmRegFilePattern, rmDirPattern   *regexp.Regexp
+
+	loadPatternsOnce sync.Once
+)
+
+func init() {
+	if !strings.ContainsRune(pathSeps, os.PathSeparator) {
+		pathSeps += string(os.PathSeparator)
+	}
+}
+
+func lazyLoadPatterns() {
+	loadPatternsOnce.Do(func() {
+		var err error
+		skpPath := filepath.Join(patternsDir, "skip.txt")
+		rmPath := filepath.Join(patternsDir, "remove.txt")
+		skpRegFilePattern, skpDirPattern, err = loadPatterns(skpPath)
+		if err != nil {
+			panic(err)
+		}
+		rmRegFilePattern, rmDirPattern, err = loadPatterns(rmPath)
+		if err != nil {
+			panic(err)
+		}
+	})
+}
 
 func loadPatterns(filename string) (regFilePattern, dirPattern *regexp.Regexp,
 	err error) {
