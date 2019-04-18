@@ -5,10 +5,13 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
+
+	"github.com/donyori/gocommfw"
 )
 
 type Settings struct {
-	PermissionErrorHandling ErrorHandling `json:"permission_error_handling"`
+	Worker                  gocommfw.WorkerSettings `json:"worker"`
+	PermissionErrorHandling ErrorHandling           `json:"permission_error_handling"`
 }
 
 var (
@@ -16,12 +19,23 @@ var (
 	loadSettingsOnce sync.Once
 )
 
+func newSettings() *Settings {
+	settings := &Settings{
+		Worker:                  *gocommfw.NewWorkerSettings(),
+		PermissionErrorHandling: Warn,
+	}
+	if settings.Worker.Number > 1 {
+		settings.Worker.Number--
+	}
+	return settings
+}
+
 func lazyLoadSettings() {
 	loadSettingsOnce.Do(func() {
 		file, err := os.Open(settingsPath)
 		if err != nil {
 			if err == os.ErrNotExist {
-				settings = &Settings{PermissionErrorHandling: Warn}
+				settings = newSettings()
 				return
 			}
 			panic(err)
@@ -31,7 +45,7 @@ func lazyLoadSettings() {
 		if err != nil {
 			panic(err)
 		}
-		s := &Settings{PermissionErrorHandling: Warn}
+		s := newSettings()
 		err = json.Unmarshal(data, s)
 		if err != nil {
 			panic(err)

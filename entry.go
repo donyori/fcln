@@ -1,7 +1,7 @@
 package main
 
 import (
-	"runtime"
+	"errors"
 	"sort"
 
 	"github.com/donyori/gotfp"
@@ -9,9 +9,9 @@ import (
 
 func getToRemove(roots ...string) (
 	toRemove BatchList, err error) {
-	workerNumber := runtime.GOMAXPROCS(0) - 1
-	if workerNumber <= 0 {
-		workerNumber = 1
+	workerNumber := settings.Worker.Number
+	if workerNumber == 0 {
+		panic(errors.New("fcln: worker number is 0"))
 	}
 	var bl BatchList
 	batchChan := make(chan *Batch, workerNumber)
@@ -53,7 +53,7 @@ func getToRemove(roots ...string) (
 			}
 		}
 	}()
-	gotfp.TraverseBatches(h, workerNumber, errChan, 0, roots...)
+	gotfp.TraverseBatches(h, settings.Worker, errChan, roots...)
 	close(batchChan)
 	close(errChan)
 	<-doneChan
