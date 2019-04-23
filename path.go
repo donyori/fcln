@@ -21,6 +21,6 @@ func init() {
 		panic(err)
 	}
 	homeDir = filepath.Dir(exePath)
-	settingsPath = filepath.Join(homeDir, "settings", "settings.json")
+	settingsPath = filepath.Join(homeDir, "settings.json")
 	patternsDir = filepath.Join(homeDir, "patterns")
 }

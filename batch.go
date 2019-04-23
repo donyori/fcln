@@ -2,8 +2,10 @@ package main
 
 type Batch struct {
 	Parent   string
-	RegFiles []string
 	Dirs     []string
+	RegFiles []string
+	Symlinks []string
+	Others   []string
 }
 
 type BatchList []*Batch

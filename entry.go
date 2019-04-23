@@ -2,13 +2,17 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"sort"
+	"time"
 
 	"github.com/donyori/gotfp"
 )
 
 func getToRemove(roots ...string) (
 	toRemove BatchList, err error) {
+	lazyLoadSettings()
 	workerNumber := settings.Worker.Number
 	if workerNumber == 0 {
 		panic(errors.New("fcln: worker number is 0"))
@@ -38,6 +42,11 @@ func getToRemove(roots ...string) (
 				}
 				bl = append(bl, b)
 			case e = <-errChan:
+				fmt.Fprintln(os.Stderr, time.Now(), e)
+				if os.IsPermission(e) &&
+					settings.PermissionErrorHandling != Fatal {
+					break
+				}
 				if exitChan == nil {
 					break
 				}
@@ -48,7 +57,9 @@ func getToRemove(roots ...string) (
 		}
 		for e = range errChan {
 			// Drain errChan.
-			if workerErr == nil {
+			fmt.Fprintln(os.Stderr, time.Now(), e)
+			if workerErr == nil && (!os.IsPermission(e) ||
+				settings.PermissionErrorHandling == Fatal) {
 				workerErr = e
 			}
 		}

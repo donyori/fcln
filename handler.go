@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/donyori/gotfp"
 )
@@ -10,20 +11,10 @@ import (
 func makeBatchHandler(batchChan chan<- *Batch, exitChan <-chan struct{},
 	errChan chan<- error) gotfp.BatchHandler {
 	lazyLoadSettings()
+	lazyLoadPatternBatches()
 	h := func(batch gotfp.Batch, depth int) (
 		action gotfp.Action, skipDirs map[string]bool) {
 		// Handling batch.Parent is necessary because of roots.
-		if batch.Parent.Info != nil {
-			if batch.Parent.Info.IsDir() {
-				if skipDirFilter(batch.Parent.Info) {
-					action = gotfp.ActionSkipDir
-					return
-				}
-			} else {
-				action = gotfp.ActionContinue
-				return
-			}
-		}
 		if batch.Parent.Err != nil {
 			if os.IsPermission(batch.Parent.Err) {
 				switch settings.PermissionErrorHandling {
@@ -79,15 +70,54 @@ func makeBatchHandler(batchChan chan<- *Batch, exitChan <-chan struct{},
 			return
 		default:
 		}
+		if batch.Parent.Info != nil {
+			if batch.Parent.Info.IsDir() {
+				if skipPatternBatch.MatchDir(&batch.Parent, nil) {
+					action = gotfp.ActionSkipDir
+					return
+				}
+				if removePatternBatch.MatchDir(&batch.Parent, nil) {
+					b := &Batch{
+						Parent: filepath.Dir(batch.Parent.Path),
+						Dirs:   []string{batch.Parent.Info.Name()},
+					}
+					batchChan <- b
+					action = gotfp.ActionSkipDir
+					return
+				}
+			} else {
+				var doesRemove bool
+				mode := batch.Parent.Info.Mode()
+				if mode.IsRegular() {
+					doesRemove = !skipPatternBatch.MatchRegFile(&batch.Parent, nil) &&
+						removePatternBatch.MatchRegFile(&batch.Parent, nil)
+				} else if (mode & os.ModeSymlink) != 0 {
+					doesRemove = !skipPatternBatch.MatchSymlink(&batch.Parent, nil) &&
+						removePatternBatch.MatchSymlink(&batch.Parent, nil)
+				} else {
+					doesRemove = !skipPatternBatch.MatchOther(&batch.Parent, nil) &&
+						removePatternBatch.MatchOther(&batch.Parent, nil)
+				}
+				if doesRemove {
+					b := &Batch{
+						Parent: filepath.Dir(batch.Parent.Path),
+						Dirs:   []string{batch.Parent.Info.Name()},
+					}
+					batchChan <- b
+				}
+				action = gotfp.ActionContinue
+				return
+			}
+		}
 
 		var b *Batch
 		for i := range batch.Dirs {
-			if skipDirFilter(batch.Dirs[i].Info) {
+			if skipPatternBatch.MatchDir(&batch.Dirs[i], &batch) {
 				if skipDirs == nil {
 					skipDirs = make(map[string]bool)
 				}
 				skipDirs[batch.Dirs[i].Path] = true
-			} else if removeDirFilter(batch.Dirs[i].Info) {
+			} else if removePatternBatch.MatchDir(&batch.Dirs[i], &batch) {
 				if skipDirs == nil {
 					skipDirs = make(map[string]bool)
 				}
@@ -99,12 +129,30 @@ func makeBatchHandler(batchChan chan<- *Batch, exitChan <-chan struct{},
 			}
 		}
 		for i := range batch.RegFiles {
-			if !skipRegFileFilter(batch.RegFiles[i].Info) &&
-				removeRegFileFilter(batch.RegFiles[i].Info) {
+			if !skipPatternBatch.MatchRegFile(&batch.RegFiles[i], &batch) &&
+				removePatternBatch.MatchRegFile(&batch.RegFiles[i], &batch) {
 				if b == nil {
 					b = &Batch{Parent: batch.Parent.Path}
 				}
 				b.RegFiles = append(b.RegFiles, batch.RegFiles[i].Info.Name())
+			}
+		}
+		for i := range batch.Symlinks {
+			if !skipPatternBatch.MatchSymlink(&batch.Symlinks[i], &batch) &&
+				removePatternBatch.MatchRegFile(&batch.Symlinks[i], &batch) {
+				if b == nil {
+					b = &Batch{Parent: batch.Parent.Path}
+				}
+				b.Symlinks = append(b.Symlinks, batch.Symlinks[i].Info.Name())
+			}
+		}
+		for i := range batch.Others {
+			if !skipPatternBatch.MatchOther(&batch.Others[i], &batch) &&
+				removePatternBatch.MatchOther(&batch.Others[i], &batch) {
+				if b == nil {
+					b = &Batch{Parent: batch.Parent.Path}
+				}
+				b.Others = append(b.Others, batch.Others[i].Info.Name())
 			}
 		}
 		if b != nil {

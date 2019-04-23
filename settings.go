@@ -11,7 +11,7 @@ import (
 
 type Settings struct {
 	Worker                  gocommfw.WorkerSettings `json:"worker"`
-	PermissionErrorHandling ErrorHandling           `json:"permission_error_handling"`
+	PermissionErrorHandling ErrorHandling           `json:"permission_error_handling,omitempty"`
 }
 
 var (
@@ -32,17 +32,12 @@ func newSettings() *Settings {
 
 func lazyLoadSettings() {
 	loadSettingsOnce.Do(func() {
-		file, err := os.Open(settingsPath)
+		data, err := ioutil.ReadFile(settingsPath)
 		if err != nil {
-			if err == os.ErrNotExist {
+			if os.IsNotExist(err) {
 				settings = newSettings()
 				return
 			}
-			panic(err)
-		}
-		defer file.Close() // Ignore error.
-		data, err := ioutil.ReadAll(file)
-		if err != nil {
 			panic(err)
 		}
 		s := newSettings()

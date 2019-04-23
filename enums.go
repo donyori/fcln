@@ -1,19 +1,17 @@
 package main
 
-import (
-	"encoding/json"
-	"strings"
-)
+import "strings"
 
 type ErrorHandling int8
 
 const (
-	Ignore ErrorHandling = iota
+	Ignore ErrorHandling = iota + 1
 	Warn
 	Fatal
 )
 
 var errorHandlingStrings = [...]string{
+	"Unknown",
 	"Ignore",
 	"Warn",
 	"Fatal",
@@ -25,27 +23,21 @@ func ParseErrorHandling(s string) ErrorHandling {
 			return ErrorHandling(i)
 		}
 	}
-	return -1 // Stands for "Unknown".
+	return 0 // Stands for "Unknown".
 }
 
 func (eh ErrorHandling) String() string {
 	if eh < Ignore || eh > Fatal {
-		return "Unknown"
+		return errorHandlingStrings[0]
 	}
 	return errorHandlingStrings[eh]
 }
 
-func (eh ErrorHandling) MarshalJSON() ([]byte, error) {
-	s := eh.String()
-	return json.Marshal(s)
+func (eh ErrorHandling) MarshalText() ([]byte, error) {
+	return []byte(eh.String()), nil
 }
 
-func (eh *ErrorHandling) UnmarshalJSON(data []byte) error {
-	var s string
-	err := json.Unmarshal(data, &s)
-	if err != nil {
-		return err
-	}
-	*eh = ParseErrorHandling(s)
+func (eh *ErrorHandling) UnmarshalText(text []byte) error {
+	*eh = ParseErrorHandling(string(text))
 	return nil
 }
