@@ -10,8 +10,7 @@ import (
 	"github.com/donyori/gotfp"
 )
 
-func getToRemove(roots ...string) (
-	toRemove BatchList, err error) {
+func getToRemove(roots ...string) (toRemove BatchList, err error) {
 	lazyLoadSettings()
 	workerNumber := settings.Worker.Number
 	if workerNumber == 0 {
@@ -74,4 +73,8 @@ func getToRemove(roots ...string) (
 		toRemove = bl
 	}
 	return
+}
+
+func printBatchList(bl BatchList) {
+	bl.Print(os.Stdout)
 }
