@@ -209,13 +209,16 @@ func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
 	if fp == nil {
 		return true
 	}
-	if file == nil || !fp.MatchInfo(file.Info) {
+	if file == nil {
 		return false
 	}
 	if fp.Path != nil && !fp.Path.Match(file.Path) {
 		return false
 	}
 	if fp.Basename != nil && !fp.Basename.Match(file.Info.Name()) {
+		return false
+	}
+	if !fp.MatchInfo(file.Info) {
 		return false
 	}
 	if fp.CstrParent != nil &&
@@ -338,88 +341,6 @@ func matchFile(patterns []FilePattern,
 	}
 	return false
 }
-
-/*
-func (pb *PatternBatch) FindAll(batch *gotfp.Batch) *Batch {
-	if pb == nil || batch == nil {
-		return nil
-	}
-	var b *Batch
-	findFiles := func(patterns []FilePattern, files []gotfp.FInfo) []string {
-		var matched []string
-		for i := range files {
-			for j := range patterns {
-				if patterns[j].Match(&files[i], batch) {
-					matched = append(matched, files[i].Path)
-					break
-				}
-			}
-		}
-		return matched
-	}
-	if len(pb.Dirs) > 0 {
-		matched := findFiles(pb.Dirs, batch.Dirs)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.Dirs = matched
-		}
-	} else if len(pb.Default) > 0 {
-		matched := findFiles(pb.Default, batch.Dirs)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.Dirs = matched
-		}
-	}
-	if len(pb.RegFiles) > 0 {
-		matched := findFiles(pb.RegFiles, batch.RegFiles)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.RegFiles = matched
-		}
-	} else if len(pb.Default) > 0 {
-		matched := findFiles(pb.Default, batch.RegFiles)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.RegFiles = matched
-		}
-	}
-	if len(pb.Symlinks) > 0 {
-		matched := findFiles(pb.Symlinks, batch.Symlinks)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.Symlinks = matched
-		}
-	} else if len(pb.Default) > 0 {
-		matched := findFiles(pb.Default, batch.Symlinks)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.Symlinks = matched
-		}
-	}
-	if len(pb.Default) > 0 {
-		matched := findFiles(pb.Default, batch.Others)
-		if len(matched) > 0 {
-			if b == nil {
-				b = &Batch{Parent: batch.Parent.Path}
-			}
-			b.Others = matched
-		}
-	}
-	return b
-}
-*/
 
 func lazyLoadPatternBatches() {
 	loadPatternBatchesOnce.Do(func() {
