@@ -6,12 +6,12 @@ import (
 	"os"
 	"sync"
 
-	"github.com/donyori/gocommfw"
+	"github.com/donyori/goctpf"
 )
 
 type Settings struct {
-	Worker                  gocommfw.WorkerSettings `json:"worker"`
-	PermissionErrorHandling ErrorHandling           `json:"permission_error_handling,omitempty"`
+	Worker                  goctpf.WorkerSettings `json:"worker"`
+	PermissionErrorHandling ErrorHandling         `json:"permission_error_handling,omitempty"`
 }
 
 var (
@@ -21,7 +21,7 @@ var (
 
 func newSettings() *Settings {
 	settings := &Settings{
-		Worker:                  *gocommfw.NewWorkerSettings(),
+		Worker:                  *goctpf.NewWorkerSettings(),
 		PermissionErrorHandling: Warn,
 	}
 	if settings.Worker.Number > 1 {

@@ -12,14 +12,14 @@ import (
 
 func getToRemove(roots ...string) (toRemove BatchList, err error) {
 	lazyLoadSettings()
-	workerNumber := settings.Worker.Number
-	if workerNumber == 0 {
+	numWorker := settings.Worker.Number
+	if numWorker == 0 {
 		panic(errors.New("fcln: worker number is 0"))
 	}
 	var bl BatchList
-	batchChan := make(chan *Batch, workerNumber)
+	batchChan := make(chan *Batch, numWorker)
 	exitChan := make(chan struct{})
-	errChan := make(chan error, workerNumber)
+	errChan := make(chan error, numWorker)
 	h := makeBatchHandler(batchChan, exitChan, errChan)
 	doneChan := make(chan struct{})
 	var workerErr, e error
