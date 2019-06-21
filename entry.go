@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/donyori/goctpf/idtpf/dfw"
+	"github.com/donyori/goctpf/prefab"
 	"github.com/donyori/gotfp"
 )
 
@@ -113,4 +115,24 @@ func GetToBeRemovedFiles(roots ...string) (toRemove BatchList, err error) {
 
 func PrintBatchList(bl BatchList) {
 	bl.Print(os.Stdout)
+}
+
+func RemoveFiles(bl BatchList) {
+	LazyLoadSettings()
+	if len(bl) == 0 {
+		return
+	}
+	initialTasks := make([]interface{}, len(bl))
+	for i := range bl {
+		initialTasks[i] = bl[i]
+	}
+	errChan := make(chan error, settings.Worker.Number)
+	go func() {
+		for err := range errChan {
+			fmt.Fprintln(os.Stderr, time.Now(), err)
+		}
+	}()
+	dfw.DoEx(prefab.LdgbTaskManagerMaker, RemoveFilesTaskHandler, nil, nil,
+		settings.Worker, errChan, initialTasks...)
+	close(errChan)
 }

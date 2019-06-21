@@ -61,3 +61,31 @@ func MakeFileWithBatchHandler(infoChan chan<- *FileInfo,
 	}
 	return h
 }
+
+func RemoveFilesTaskHandler(workerNo int, task interface{}, errBuf *[]error) (
+	newTasks []interface{}, doesExit bool) {
+	switch task.(type) {
+	case string:
+		err := os.RemoveAll(task.(string))
+		if err != nil {
+			*errBuf = append(*errBuf, err)
+		}
+	case *Batch:
+		b := task.(*Batch)
+		newTasks = make([]interface{}, 0,
+			len(b.Dirs)+len(b.RegFiles)+len(b.Symlinks)+len(b.Others))
+		appendPath := func(files []string) {
+			for _, file := range files {
+				newTasks = append(newTasks, filepath.Join(b.Parent, file))
+			}
+		}
+		appendPath(b.Dirs)
+		appendPath(b.RegFiles)
+		appendPath(b.Symlinks)
+		appendPath(b.Others)
+		if len(newTasks) == 0 {
+			newTasks = nil
+		}
+	}
+	return
+}
