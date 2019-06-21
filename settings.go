@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"sync"
 
 	"github.com/donyori/goctpf"
@@ -19,7 +20,7 @@ var (
 	loadSettingsOnce sync.Once
 )
 
-func newSettings() *Settings {
+func NewSettings() *Settings {
 	settings := &Settings{
 		Worker:                  *goctpf.NewWorkerSettings(),
 		PermissionErrorHandling: Warn,
@@ -30,17 +31,29 @@ func newSettings() *Settings {
 	return settings
 }
 
-func lazyLoadSettings() {
+func LazyLoadSettings() {
 	loadSettingsOnce.Do(func() {
+		defer func() {
+			if settings == nil || settings.Worker.Number != 0 {
+				return
+			}
+			maxprocs := runtime.GOMAXPROCS(0)
+			if maxprocs > 1 {
+				settings.Worker.Number = uint32(maxprocs - 1)
+			} else {
+				settings.Worker.Number = 1
+			}
+		}()
 		data, err := ioutil.ReadFile(settingsPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				settings = newSettings()
+				err = nil
+				settings = NewSettings()
 				return
 			}
 			panic(err)
 		}
-		s := newSettings()
+		s := NewSettings()
 		err = json.Unmarshal(data, s)
 		if err != nil {
 			panic(err)

@@ -140,7 +140,7 @@ func (cip *ConstraintInfoPattern) MatchInfo(info os.FileInfo) bool {
 	return true
 }
 
-func (cfp *ConstraintFilePattern) Match(file, target *gotfp.FInfo) bool {
+func (cfp *ConstraintFilePattern) Match(file, target *gotfp.FileInfo) bool {
 	if cfp == nil {
 		return true
 	}
@@ -204,8 +204,8 @@ func (cfp *ConstraintFilePattern) Match(file, target *gotfp.FInfo) bool {
 	return true
 }
 
-// batch is to which file belongs and not as batch.Parent.
-func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
+func (fp *FilePattern) Match(file *gotfp.FileInfo,
+	lctn *gotfp.LocationBatchInfo) bool {
 	if fp == nil {
 		return true
 	}
@@ -221,12 +221,16 @@ func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
 	if !fp.MatchInfo(file.Info) {
 		return false
 	}
+	var batch *gotfp.Batch
+	if lctn != nil {
+		batch = lctn.Batch
+	}
 	if fp.CstrParent != nil &&
 		(batch == nil || !fp.CstrParent.Match(&batch.Parent, file)) {
 		return false
 	}
 	matchSiblings := func(cstr []ConstraintFilePattern,
-		files [][]gotfp.FInfo) bool {
+		files [][]gotfp.FileInfo) bool {
 		if batch == nil {
 			return false
 		}
@@ -254,13 +258,13 @@ func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
 		return true
 	}
 	if fp.CstrSiblings != nil {
-		var defaultFiles [][]gotfp.FInfo
+		var defaultFiles [][]gotfp.FileInfo
 		if len(fp.CstrSiblings.Default) > 0 {
-			defaultFiles = make([][]gotfp.FInfo, 0, 4)
+			defaultFiles = make([][]gotfp.FileInfo, 0, 4)
 		}
 		if len(fp.CstrSiblings.Dirs) > 0 {
 			if !matchSiblings(fp.CstrSiblings.Dirs,
-				[][]gotfp.FInfo{batch.Dirs}) {
+				[][]gotfp.FileInfo{batch.Dirs}) {
 				return false
 			}
 		} else if defaultFiles != nil {
@@ -268,7 +272,7 @@ func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
 		}
 		if len(fp.CstrSiblings.RegFiles) > 0 {
 			if !matchSiblings(fp.CstrSiblings.RegFiles,
-				[][]gotfp.FInfo{batch.RegFiles}) {
+				[][]gotfp.FileInfo{batch.RegFiles}) {
 				return false
 			}
 		} else if defaultFiles != nil {
@@ -276,7 +280,7 @@ func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
 		}
 		if len(fp.CstrSiblings.Symlinks) > 0 {
 			if !matchSiblings(fp.CstrSiblings.Symlinks,
-				[][]gotfp.FInfo{batch.Symlinks}) {
+				[][]gotfp.FileInfo{batch.Symlinks}) {
 				return false
 			}
 		} else if defaultFiles != nil {
@@ -292,57 +296,43 @@ func (fp *FilePattern) Match(file *gotfp.FInfo, batch *gotfp.Batch) bool {
 	return true
 }
 
-func (pb *PatternBatch) MatchDir(dir *gotfp.FInfo, batch *gotfp.Batch) bool {
-	if pb == nil {
+func (pb *PatternBatch) Match(file *gotfp.FileInfo,
+	lctn *gotfp.LocationBatchInfo) bool {
+	if pb == nil || file == nil {
 		return false
 	}
-	if len(pb.Dirs) > 0 {
-		return matchFile(pb.Dirs, dir, batch)
-	}
-	return matchFile(pb.Default, dir, batch)
-}
-
-func (pb *PatternBatch) MatchRegFile(file *gotfp.FInfo,
-	batch *gotfp.Batch) bool {
-	if pb == nil {
+	switch file.Cat {
+	case gotfp.RegularFile:
+		if len(pb.RegFiles) > 0 {
+			return matchFile(pb.RegFiles, file, lctn)
+		}
+	case gotfp.Symlink:
+		if len(pb.Symlinks) > 0 {
+			return matchFile(pb.Symlinks, file, lctn)
+		}
+	case gotfp.Directory:
+		if len(pb.Dirs) > 0 {
+			return matchFile(pb.Dirs, file, lctn)
+		}
+	case gotfp.OtherFile:
+		// Do nothing here.
+	default:
 		return false
 	}
-	if len(pb.RegFiles) > 0 {
-		return matchFile(pb.RegFiles, file, batch)
-	}
-	return matchFile(pb.Default, file, batch)
-}
-
-func (pb *PatternBatch) MatchSymlink(symlink *gotfp.FInfo,
-	batch *gotfp.Batch) bool {
-	if pb == nil {
-		return false
-	}
-	if len(pb.Symlinks) > 0 {
-		return matchFile(pb.Symlinks, symlink, batch)
-	}
-	return matchFile(pb.Default, symlink, batch)
-}
-
-func (pb *PatternBatch) MatchOther(other *gotfp.FInfo,
-	batch *gotfp.Batch) bool {
-	if pb == nil {
-		return false
-	}
-	return matchFile(pb.Default, other, batch)
+	return matchFile(pb.Default, file, lctn)
 }
 
 func matchFile(patterns []FilePattern,
-	file *gotfp.FInfo, batch *gotfp.Batch) bool {
+	file *gotfp.FileInfo, lctn *gotfp.LocationBatchInfo) bool {
 	for i := range patterns {
-		if patterns[i].Match(file, batch) {
+		if patterns[i].Match(file, lctn) {
 			return true
 		}
 	}
 	return false
 }
 
-func lazyLoadPatternBatches() {
+func LazyLoadPatternBatches() {
 	loadPatternBatchesOnce.Do(func() {
 		patternBatchFilenames := []string{
 			"skip.json",

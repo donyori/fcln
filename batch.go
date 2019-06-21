@@ -20,7 +20,7 @@ func (bl BatchList) Len() int {
 }
 
 func (bl BatchList) Less(i, j int) bool {
-	return bl[i].Parent < bl[j].Parent
+	return bl[i] != nil && (bl[j] == nil || bl[i].Parent < bl[j].Parent)
 }
 
 func (bl BatchList) Swap(i, j int) {
